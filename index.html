@@ -1,77 +1,428 @@
-
-<h2 class="sr-only">PACS Interactive Phoneme Explorer — input an IPA phoneme to see its ARTIC-48 articulatory channel values across S, P, E, and R layers.</h2>
-
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PACS · Phoneme Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: var(--font-mono, monospace); }
+/* ── Reset & tokens ───────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-.root { padding: 1.5rem 0; display: flex; flex-direction: column; gap: 1.5rem; }
+:root {
+  --bg:        #0e1117;
+  --surface:   #161b24;
+  --surface2:  #1d2535;
+  --border:    rgba(255,255,255,0.07);
+  --border2:   rgba(255,255,255,0.12);
 
-.header { display: flex; flex-direction: column; gap: 6px; }
-.badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 500; letter-spacing: 0.08em; color: var(--color-text-secondary); text-transform: uppercase; }
-.badge-dot { width: 6px; height: 6px; border-radius: 50%; background: #3266ad; }
-h1.title { font-size: 20px; font-weight: 500; color: var(--color-text-primary); font-family: var(--font-sans); }
+  --text-1: #e8ecf4;
+  --text-2: #8c96ab;
+  --text-3: #505a6e;
 
-.input-row { display: flex; gap: 8px; align-items: stretch; }
-.ipa-input { flex: 1; font-family: var(--font-mono); font-size: 22px; padding: 10px 14px; background: var(--color-background-primary); border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); color: var(--color-text-primary); outline: none; }
-.ipa-input:focus { border-color: #3266ad; box-shadow: 0 0 0 2px rgba(50,102,173,0.15); }
-.phoneme-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { font-family: var(--font-mono); font-size: 14px; padding: 5px 12px; border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); background: var(--color-background-secondary); color: var(--color-text-secondary); cursor: pointer; transition: border-color 0.12s, color 0.12s, background 0.12s; }
-.chip:hover { border-color: var(--color-border-primary); color: var(--color-text-primary); background: var(--color-background-primary); }
-.chip.active { border-color: #3266ad; color: #3266ad; background: #E6F1FB; }
+  --blue:      #3d7bd4;
+  --blue-dim:  rgba(61,123,212,0.15);
+  --blue-glow: rgba(61,123,212,0.35);
 
-.section { display: flex; flex-direction: column; gap: 10px; }
-.section-header { display: flex; align-items: baseline; gap: 10px; padding-bottom: 6px; border-bottom: 0.5px solid var(--color-border-tertiary); }
-.section-label { font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-secondary); font-family: var(--font-sans); }
-.section-desc { font-size: 12px; color: var(--color-text-tertiary); font-family: var(--font-sans); }
-.layer-tag { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.06em; }
-.tag-s { background: #E6F1FB; color: #185FA5; }
-.tag-p { background: #EAF3DE; color: #3B6D11; }
-.tag-e { background: #FAEEDA; color: #854F0B; }
-.tag-r { background: #EEEDFE; color: #3C3489; }
+  --mono: "IBM Plex Mono", monospace;
+  --sans: "DM Sans", sans-serif;
 
-.channels { display: flex; flex-direction: column; gap: 5px; }
-.channel-row { display: grid; grid-template-columns: 160px 1fr 52px; align-items: center; gap: 10px; }
-.ch-name { font-family: var(--font-mono); font-size: 12px; color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ch-bar-track { height: 6px; background: var(--color-background-secondary); border-radius: 3px; position: relative; overflow: hidden; }
-.ch-bar-fill { height: 100%; border-radius: 3px; transition: width 0.35s cubic-bezier(0.25,0.46,0.45,0.94); position: absolute; left: 0; top: 0; }
-.ch-val { font-family: var(--font-mono); font-size: 12px; color: var(--color-text-primary); text-align: right; }
-.ch-val.zero { color: var(--color-text-tertiary); }
+  --radius: 8px;
+  --radius-sm: 5px;
+}
 
-.phoneme-info { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
-.info-card { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 14px; }
-.info-label { font-size: 11px; color: var(--color-text-tertiary); font-family: var(--font-sans); margin-bottom: 3px; }
-.info-val { font-size: 14px; font-weight: 500; color: var(--color-text-primary); font-family: var(--font-sans); }
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text-1);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
 
-.empty-state { font-size: 14px; color: var(--color-text-tertiary); font-family: var(--font-sans); padding: 1rem 0; text-align: center; }
+/* ── Layout ───────────────────────────────────────────────────── */
+.app {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  grid-template-columns: 320px 1fr;
+  grid-template-areas:
+    "topbar topbar"
+    "sidebar main";
+  max-width: 1200px;
+  margin: 0 auto;
+}
 
-.articulator-groups { display: flex; flex-direction: column; gap: 12px; }
-.artic-group { display: flex; flex-direction: column; gap: 5px; }
-.group-label { font-size: 11px; font-weight: 500; color: var(--color-text-tertiary); letter-spacing: 0.08em; text-transform: uppercase; font-family: var(--font-sans); padding-left: 2px; }
+/* ── Top bar ──────────────────────────────────────────────────── */
+.topbar {
+  grid-area: topbar;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 28px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.topbar-badge {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--text-3);
+  text-transform: uppercase;
+}
+
+.badge-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--blue);
+  box-shadow: 0 0 6px var(--blue-glow);
+}
+
+.topbar-title {
+  font-family: var(--sans);
+  font-size: 17px;
+  font-weight: 400;
+  color: var(--text-1);
+  letter-spacing: -0.01em;
+}
+
+.topbar-sep {
+  width: 1px; height: 18px;
+  background: var(--border2);
+}
+
+.topbar-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  letter-spacing: 0.04em;
+}
+
+/* ── Sidebar ──────────────────────────────────────────────────── */
+.sidebar {
+  grid-area: sidebar;
+  padding: 24px 20px 32px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  overflow-y: auto;
+}
+
+/* input */
+.input-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.input-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.ipa-input {
+  width: 100%;
+  font-family: var(--mono);
+  font-size: 26px;
+  font-weight: 500;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--text-1);
+  outline: none;
+  letter-spacing: 0.04em;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.ipa-input::placeholder { color: var(--text-3); }
+
+.ipa-input:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-dim);
+}
+
+/* chips */
+.chips-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.phoneme-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.chip {
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 5px 10px;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s, background 0.12s, box-shadow 0.12s;
+}
+
+.chip:hover {
+  border-color: rgba(61,123,212,0.4);
+  color: var(--text-1);
+  background: var(--surface2);
+}
+
+.chip.active {
+  border-color: var(--blue);
+  color: var(--blue);
+  background: var(--blue-dim);
+  box-shadow: 0 0 0 1px var(--blue-dim);
+}
+
+/* info cards */
+.info-section { display: flex; flex-direction: column; gap: 8px; }
+
+.section-label-sm {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+.info-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+
+.info-card:last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+.info-card-label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 4px;
+}
+
+.info-card-val {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-1);
+}
+
+/* phoneme name */
+.phoneme-name {
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.5;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+/* example */
+.phoneme-example {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  padding-top: 2px;
+}
+
+/* empty state */
+.empty-state {
+  display: none;
+  font-size: 13px;
+  color: var(--text-3);
+  text-align: center;
+  padding: 40px 0;
+  grid-column: 1 / -1;
+}
+
+/* ── Main panel ───────────────────────────────────────────────── */
+.main {
+  grid-area: main;
+  padding: 28px 32px 40px;
+  overflow-y: auto;
+}
+
+.main-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.layer-tag {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: var(--radius-sm);
+}
+
+.tag-s { background: rgba(50,102,173,0.18); color: #7cb3f0; }
+
+.main-header-text {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+/* articulator groups */
+.articulator-groups { display: flex; flex-direction: column; gap: 18px; }
+
+.artic-group { display: flex; flex-direction: column; gap: 6px; }
+
+.group-label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* channel rows */
+.channel-row {
+  display: grid;
+  grid-template-columns: 180px 1fr 52px;
+  align-items: center;
+  gap: 12px;
+  padding: 3px 0;
+}
+
+.ch-name {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ch-bar-track {
+  height: 5px;
+  background: var(--surface2);
+  border-radius: 3px;
+  position: relative;
+  overflow: hidden;
+}
+
+.ch-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  transition: width 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+              left  0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.ch-val {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-1);
+  text-align: right;
+}
+
+.ch-val.zero { color: var(--text-3); }
+
+/* ── Responsive ───────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  .app {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas:
+      "topbar"
+      "sidebar"
+      "main";
+  }
+  .sidebar { border-right: none; border-bottom: 1px solid var(--border); }
+  .channel-row { grid-template-columns: 130px 1fr 44px; }
+}
 </style>
+</head>
+<body>
 
-<div class="root">
-  <div class="header">
-    <span class="badge"><span class="badge-dot"></span>PACS · ARTIC-48</span>
-    <h1 class="title">Phoneme Explorer</h1>
-  </div>
+<div class="app">
 
-  <div>
-    <div class="input-row" style="margin-bottom: 10px;">
-      <input class="ipa-input" id="ipaInput" type="text" placeholder="/i/" maxlength="6" />
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="topbar-badge">
+      <span class="badge-dot"></span>
+      PACS · ARTIC-48
     </div>
-    <div class="phoneme-chips" id="chips"></div>
-  </div>
+    <div class="topbar-sep"></div>
+    <h1 class="topbar-title">Phoneme Explorer</h1>
+    <div class="topbar-sep"></div>
+    <span class="topbar-sub">S layer · Speech articulation channels</span>
+  </header>
 
-  <div id="infoSection" style="display:none;">
-    <div class="phoneme-info" id="phonemeInfo"></div>
-  </div>
+  <!-- Sidebar -->
+  <aside class="sidebar">
 
-  <div id="channelsSection" style="display:none;">
+    <!-- IPA input -->
+    <div class="input-wrap">
+      <span class="input-label">IPA symbol</span>
+      <input class="ipa-input" id="ipaInput" type="text" placeholder="/i/" maxlength="6" autocomplete="off" spellcheck="false" />
+    </div>
+
+    <!-- Phoneme chips -->
+    <div>
+      <div class="chips-label" style="margin-bottom:8px;">Quick pick</div>
+      <div class="phoneme-chips" id="chips"></div>
+    </div>
+
+    <!-- Phoneme info -->
+    <div class="info-section" id="infoSection" style="display:none;">
+      <div class="section-label-sm">Properties</div>
+
+      <div class="info-grid" id="phonemeInfo"></div>
+
+      <div class="phoneme-name" id="phonemeName"></div>
+      <div class="phoneme-example" id="phonemeExample"></div>
+    </div>
+
+  </aside>
+
+  <!-- Main channels panel -->
+  <main class="main">
+    <div class="main-header" id="mainHeader" style="display:none;">
+      <span class="layer-tag tag-s">S layer</span>
+      <span class="main-header-text">Articulatory channel values</span>
+    </div>
+
     <div class="articulator-groups" id="articulatorGroups"></div>
-  </div>
+    <div class="empty-state" id="emptyState" style="display:flex; align-items:center; justify-content:center;">
+      Type an IPA symbol or pick one from the sidebar
+    </div>
+  </main>
 
-  <div class="empty-state" id="emptyState">type an IPA symbol or pick one above</div>
 </div>
 
 <script>
@@ -223,111 +574,97 @@ const PHONEME_DB = {
 };
 
 const ARTICULATOR_GROUPS = [
-  { label: "Jaw", channels: ["jaw_open","jaw_protrude","jaw_lateral"] },
-  { label: "Lips", channels: ["lip_aperture","lip_rounding","lip_spreading","lip_compression","lower_lip_tuck","upper_lip_raise","lip_asymmetry"] },
-  { label: "Tongue", channels: ["tongue_height","tongue_backness","tongue_tip_raise","tongue_tip_curl","tongue_groove","tongue_dorsum_raise","tongue_root_retract","tongue_protrusion"] },
-  { label: "Velum & Larynx", channels: ["velum_lower","larynx_height","voicing","aspiration"] },
-  { label: "Secondary", channels: ["cheek_compression","nostril_flare"] },
+  { label: "Jaw",             channels: ["jaw_open","jaw_protrude","jaw_lateral"] },
+  { label: "Lips",            channels: ["lip_aperture","lip_rounding","lip_spreading","lip_compression","lower_lip_tuck","upper_lip_raise","lip_asymmetry"] },
+  { label: "Tongue",          channels: ["tongue_height","tongue_backness","tongue_tip_raise","tongue_tip_curl","tongue_groove","tongue_dorsum_raise","tongue_root_retract","tongue_protrusion"] },
+  { label: "Velum & Larynx",  channels: ["velum_lower","larynx_height","voicing","aspiration"] },
+  { label: "Secondary",       channels: ["cheek_compression","nostril_flare"] },
 ];
 
 const CHIPS_LIST = ["i","u","a","ɛ","o","p","b","m","t","d","n","s","z","ʃ","ʒ","k","g","f","v","θ","ð","h","l","ŋ"];
+const BAR_COLOR  = "#3d7bd4";
 
-const LAYER_COLORS = {
-  S: { bar: "#3266ad", fill: "#c8ddf6" },
-  P: { bar: "#3B6D11", fill: "#c0dd97" },
-  E: { bar: "#854F0B", fill: "#fac775" },
-  R: { bar: "#3C3489", fill: "#CECBF6" },
-};
-
-function pct(val) {
-  if (val < 0) return Math.abs(val) * 50;
-  return val * 100;
-}
-
-function leftOffset(val) {
-  if (val < 0) return (1 + val) * 50;
-  return 50;
-}
-
+function pct(val)       { return val < 0 ? Math.abs(val) * 50 : val * 100; }
+function leftOff(val)   { return val < 0 ? (1 + val) * 50 : 50; }
 function isBipolar(val) { return val < 0; }
 
-function renderChannel(name, val, color) {
+function renderChannel(name, val) {
   const isZero = Math.abs(val) < 0.005;
-  const displayVal = val.toFixed(2);
-  const width = pct(val).toFixed(1) + "%";
-  const left = isBipolar(val) ? leftOffset(val).toFixed(1) + "%" : "0%";
+  const width  = pct(val).toFixed(1) + "%";
+  const left   = isBipolar(val) ? leftOff(val).toFixed(1) + "%" : "0%";
   return `
     <div class="channel-row">
       <span class="ch-name" title="${name}">${name}</span>
       <div class="ch-bar-track">
-        <div class="ch-bar-fill" style="width:${width};left:${left};background:${color.bar};"></div>
+        <div class="ch-bar-fill" style="width:${width};left:${left};background:${BAR_COLOR};"></div>
       </div>
-      <span class="ch-val${isZero ? " zero" : ""}">${displayVal}</span>
+      <span class="ch-val${isZero ? " zero" : ""}">${val.toFixed(2)}</span>
     </div>`;
 }
 
-function renderGroups(channels, color) {
+function renderGroups(channels) {
   let html = "";
   for (const g of ARTICULATOR_GROUPS) {
     const relevant = g.channels.filter(ch => ch in channels);
     if (!relevant.length) continue;
     html += `<div class="artic-group"><span class="group-label">${g.label}</span>`;
-    for (const ch of relevant) {
-      html += renderChannel(ch, channels[ch] || 0, color);
-    }
+    for (const ch of relevant) html += renderChannel(ch, channels[ch] || 0);
     html += `</div>`;
   }
   return html;
 }
 
 function renderPhoneme(sym) {
-  const key = sym.replace(/\//g, "").trim();
+  const key  = sym.replace(/\//g, "").trim();
   const data = PHONEME_DB[key];
 
-  document.getElementById("emptyState").style.display = data ? "none" : "";
-  document.getElementById("infoSection").style.display = data ? "" : "none";
-  document.getElementById("channelsSection").style.display = data ? "" : "none";
+  const emptyEl   = document.getElementById("emptyState");
+  const infoEl    = document.getElementById("infoSection");
+  const mainHdr   = document.getElementById("mainHeader");
+  const groupsEl  = document.getElementById("articulatorGroups");
 
-  document.querySelectorAll(".chip").forEach(c => c.classList.toggle("active", c.dataset.sym === key));
+  document.querySelectorAll(".chip").forEach(c =>
+    c.classList.toggle("active", c.dataset.sym === key));
 
   if (!data) {
-    if (key.length > 0) {
-      document.getElementById("emptyState").textContent = `/${key}/ not in database — try a common IPA symbol`;
-      document.getElementById("emptyState").style.display = "";
-    }
+    emptyEl.style.display  = "flex";
+    infoEl.style.display   = "none";
+    mainHdr.style.display  = "none";
+    groupsEl.innerHTML     = "";
+    emptyEl.textContent    = key.length > 0
+      ? `/${key}/ not in database — try a common IPA symbol`
+      : "Type an IPA symbol or pick one from the sidebar";
     return;
   }
 
+  emptyEl.style.display  = "none";
+  infoEl.style.display   = "";
+  mainHdr.style.display  = "flex";
+
   document.getElementById("phonemeInfo").innerHTML = `
     <div class="info-card">
-      <div class="info-label">manner</div>
-      <div class="info-val">${data.manner}</div>
+      <div class="info-card-label">Manner</div>
+      <div class="info-card-val">${data.manner}</div>
     </div>
     <div class="info-card">
-      <div class="info-label">place</div>
-      <div class="info-val">${data.place}</div>
+      <div class="info-card-label">Place</div>
+      <div class="info-card-val">${data.place}</div>
     </div>
     <div class="info-card">
-      <div class="info-label">voicing</div>
-      <div class="info-val">${data.voicing}</div>
+      <div class="info-card-label">Voicing</div>
+      <div class="info-card-val">${data.voicing}</div>
     </div>`;
 
-  const color = LAYER_COLORS.S;
-  document.getElementById("articulatorGroups").innerHTML = `
-    <div class="section-header">
-      <span class="layer-tag tag-s">S layer</span>
-      <span class="section-label">Speech articulation</span>
-      <span class="section-desc">${data.name}</span>
-    </div>
-    <div class="channels">
-      ${renderGroups(data.S, color)}
-    </div>`;
+  document.getElementById("phonemeName").textContent    = data.name;
+  document.getElementById("phonemeExample").textContent = "e.g. " + data.example;
+  groupsEl.innerHTML = renderGroups(data.S);
 }
 
+// Build chips
 const chipsEl = document.getElementById("chips");
 CHIPS_LIST.forEach(sym => {
   const chip = document.createElement("button");
-  chip.className = "chip";
+  chip.className   = "chip";
   chip.dataset.sym = sym;
   chip.textContent = "/" + sym + "/";
   chip.onclick = () => {
@@ -337,9 +674,13 @@ CHIPS_LIST.forEach(sym => {
   chipsEl.appendChild(chip);
 });
 
+// Wire input
 const input = document.getElementById("ipaInput");
 input.addEventListener("input", () => renderPhoneme(input.value));
 
-renderPhoneme("i");
+// Boot
 input.value = "i";
+renderPhoneme("i");
 </script>
+</body>
+</html>
