@@ -1,0 +1,345 @@
+
+<h2 class="sr-only">PACS Interactive Phoneme Explorer — input an IPA phoneme to see its ARTIC-48 articulatory channel values across S, P, E, and R layers.</h2>
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-mono, monospace); }
+
+.root { padding: 1.5rem 0; display: flex; flex-direction: column; gap: 1.5rem; }
+
+.header { display: flex; flex-direction: column; gap: 6px; }
+.badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 500; letter-spacing: 0.08em; color: var(--color-text-secondary); text-transform: uppercase; }
+.badge-dot { width: 6px; height: 6px; border-radius: 50%; background: #3266ad; }
+h1.title { font-size: 20px; font-weight: 500; color: var(--color-text-primary); font-family: var(--font-sans); }
+
+.input-row { display: flex; gap: 8px; align-items: stretch; }
+.ipa-input { flex: 1; font-family: var(--font-mono); font-size: 22px; padding: 10px 14px; background: var(--color-background-primary); border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); color: var(--color-text-primary); outline: none; }
+.ipa-input:focus { border-color: #3266ad; box-shadow: 0 0 0 2px rgba(50,102,173,0.15); }
+.phoneme-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--font-mono); font-size: 14px; padding: 5px 12px; border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); background: var(--color-background-secondary); color: var(--color-text-secondary); cursor: pointer; transition: border-color 0.12s, color 0.12s, background 0.12s; }
+.chip:hover { border-color: var(--color-border-primary); color: var(--color-text-primary); background: var(--color-background-primary); }
+.chip.active { border-color: #3266ad; color: #3266ad; background: #E6F1FB; }
+
+.section { display: flex; flex-direction: column; gap: 10px; }
+.section-header { display: flex; align-items: baseline; gap: 10px; padding-bottom: 6px; border-bottom: 0.5px solid var(--color-border-tertiary); }
+.section-label { font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-secondary); font-family: var(--font-sans); }
+.section-desc { font-size: 12px; color: var(--color-text-tertiary); font-family: var(--font-sans); }
+.layer-tag { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.06em; }
+.tag-s { background: #E6F1FB; color: #185FA5; }
+.tag-p { background: #EAF3DE; color: #3B6D11; }
+.tag-e { background: #FAEEDA; color: #854F0B; }
+.tag-r { background: #EEEDFE; color: #3C3489; }
+
+.channels { display: flex; flex-direction: column; gap: 5px; }
+.channel-row { display: grid; grid-template-columns: 160px 1fr 52px; align-items: center; gap: 10px; }
+.ch-name { font-family: var(--font-mono); font-size: 12px; color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ch-bar-track { height: 6px; background: var(--color-background-secondary); border-radius: 3px; position: relative; overflow: hidden; }
+.ch-bar-fill { height: 100%; border-radius: 3px; transition: width 0.35s cubic-bezier(0.25,0.46,0.45,0.94); position: absolute; left: 0; top: 0; }
+.ch-val { font-family: var(--font-mono); font-size: 12px; color: var(--color-text-primary); text-align: right; }
+.ch-val.zero { color: var(--color-text-tertiary); }
+
+.phoneme-info { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.info-card { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 14px; }
+.info-label { font-size: 11px; color: var(--color-text-tertiary); font-family: var(--font-sans); margin-bottom: 3px; }
+.info-val { font-size: 14px; font-weight: 500; color: var(--color-text-primary); font-family: var(--font-sans); }
+
+.empty-state { font-size: 14px; color: var(--color-text-tertiary); font-family: var(--font-sans); padding: 1rem 0; text-align: center; }
+
+.articulator-groups { display: flex; flex-direction: column; gap: 12px; }
+.artic-group { display: flex; flex-direction: column; gap: 5px; }
+.group-label { font-size: 11px; font-weight: 500; color: var(--color-text-tertiary); letter-spacing: 0.08em; text-transform: uppercase; font-family: var(--font-sans); padding-left: 2px; }
+</style>
+
+<div class="root">
+  <div class="header">
+    <span class="badge"><span class="badge-dot"></span>PACS · ARTIC-48</span>
+    <h1 class="title">Phoneme Explorer</h1>
+  </div>
+
+  <div>
+    <div class="input-row" style="margin-bottom: 10px;">
+      <input class="ipa-input" id="ipaInput" type="text" placeholder="/i/" maxlength="6" />
+    </div>
+    <div class="phoneme-chips" id="chips"></div>
+  </div>
+
+  <div id="infoSection" style="display:none;">
+    <div class="phoneme-info" id="phonemeInfo"></div>
+  </div>
+
+  <div id="channelsSection" style="display:none;">
+    <div class="articulator-groups" id="articulatorGroups"></div>
+  </div>
+
+  <div class="empty-state" id="emptyState">type an IPA symbol or pick one above</div>
+</div>
+
+<script>
+const PHONEME_DB = {
+  "i": {
+    name: "Close front unrounded vowel",
+    manner: "Vowel", place: "Front", voicing: "Voiced",
+    example: "bee (English)",
+    S: { jaw_open:0.15, lip_aperture:0.20, lip_spreading:0.65, lip_rounding:0.00, lip_compression:0.00, lower_lip_tuck:0.00, upper_lip_raise:0.05, tongue_height:0.90, tongue_backness:0.10, tongue_tip_raise:0.05, tongue_groove:0.10, tongue_dorsum_raise:0.05, tongue_root_retract:0.00, tongue_protrusion:0.00, velum_lower:0.00, larynx_height:0.20, voicing:1.00, aspiration:0.00, cheek_compression:0.05, nostril_flare:0.00 },
+  },
+  "u": {
+    name: "Close back rounded vowel",
+    manner: "Vowel", place: "Back", voicing: "Voiced",
+    example: "boot (English)",
+    S: { jaw_open:0.10, lip_aperture:0.15, lip_spreading:0.00, lip_rounding:0.90, lip_compression:0.00, lower_lip_tuck:0.00, upper_lip_raise:0.00, tongue_height:0.85, tongue_backness:0.95, tongue_tip_raise:0.00, tongue_groove:0.00, tongue_dorsum_raise:0.30, tongue_root_retract:0.10, tongue_protrusion:0.00, velum_lower:0.00, larynx_height:-0.30, voicing:1.00, aspiration:0.00, cheek_compression:0.10, nostril_flare:0.00 },
+  },
+  "a": {
+    name: "Open front unrounded vowel",
+    manner: "Vowel", place: "Front", voicing: "Voiced",
+    example: "father (English)",
+    S: { jaw_open:0.90, lip_aperture:0.85, lip_spreading:0.10, lip_rounding:0.00, lip_compression:0.00, lower_lip_tuck:0.00, upper_lip_raise:0.10, tongue_height:0.05, tongue_backness:0.20, tongue_tip_raise:0.00, tongue_groove:0.00, tongue_dorsum_raise:0.00, tongue_root_retract:0.00, tongue_protrusion:0.00, velum_lower:0.00, larynx_height:0.10, voicing:1.00, aspiration:0.00, cheek_compression:0.00, nostril_flare:0.00 },
+  },
+  "ɛ": {
+    name: "Open-mid front unrounded vowel",
+    manner: "Vowel", place: "Front", voicing: "Voiced",
+    example: "bed (English)",
+    S: { jaw_open:0.55, lip_aperture:0.50, lip_spreading:0.40, lip_rounding:0.00, lip_compression:0.00, lower_lip_tuck:0.00, upper_lip_raise:0.05, tongue_height:0.40, tongue_backness:0.15, tongue_tip_raise:0.00, tongue_groove:0.00, tongue_dorsum_raise:0.00, tongue_root_retract:0.00, tongue_protrusion:0.00, velum_lower:0.00, larynx_height:0.05, voicing:1.00, aspiration:0.00, cheek_compression:0.00, nostril_flare:0.00 },
+  },
+  "o": {
+    name: "Close-mid back rounded vowel",
+    manner: "Vowel", place: "Back", voicing: "Voiced",
+    example: "go (English)",
+    S: { jaw_open:0.35, lip_aperture:0.30, lip_spreading:0.00, lip_rounding:0.70, lip_compression:0.00, lower_lip_tuck:0.00, upper_lip_raise:0.00, tongue_height:0.60, tongue_backness:0.80, tongue_tip_raise:0.00, tongue_groove:0.00, tongue_dorsum_raise:0.20, tongue_root_retract:0.05, tongue_protrusion:0.00, velum_lower:0.00, larynx_height:-0.20, voicing:1.00, aspiration:0.00, cheek_compression:0.05, nostril_flare:0.00 },
+  },
+  "p": {
+    name: "Voiceless bilabial stop",
+    manner: "Stop", place: "Bilabial", voicing: "Voiceless",
+    example: "pin (English)",
+    S: { jaw_open:0.05, lip_aperture:0.00, lip_spreading:0.00, lip_rounding:0.00, lip_compression:0.85, lower_lip_tuck:0.00, upper_lip_raise:0.00, tongue_height:0.30, tongue_backness:0.40, tongue_tip_raise:0.00, tongue_groove:0.00, tongue_dorsum_raise:0.00, tongue_root_retract:0.00, tongue_protrusion:0.00, velum_lower:0.00, larynx_height:0.00, voicing:0.00, aspiration:0.50, cheek_compression:0.20, nostril_flare:0.00 },
+  },
+  "b": {
+    name: "Voiced bilabial stop",
+    manner: "Stop", place: "Bilabial", voicing: "Voiced",
+    example: "bin (English)",
+    S: { jaw_open:0.05, lip_aperture:0.00, lip_spreading:0.00, lip_rounding:0.00, lip_compression:0.85, lower_lip_tuck:0.00, upper_lip_raise:0.00, tongue_height:0.30, tongue_backness:0.40, tongue_tip_raise:0.00, tongue_groove:0.00, tongue_dorsum_raise:0.00, tongue_root_retract:0.00, tongue_protrusion:0.00, velum_lower:0.00, larynx_height:0.00, voicing:1.00, aspiration:0.00, cheek_compression:0.15, nostril_flare:0.00 },
+  },
+  "m": {
+    name: "Voiced bilabial nasal",
+    manner: "Nasal", place: "Bilabial", voicing: "Voiced",
+    example: "man (English)",
+    S: { jaw_open:0.10, lip_aperture:0.00, lip_spreading:0.00, lip_rounding:0.00, lip_compression:0.70, lower_lip_tuck:0.00, upper_lip_raise:0.00, tongue_height:0.30, tongue_backness:0.40, tongue_tip_raise:0.00, tongue_groove:0.00, tongue_dorsum_raise:0.00, tongue_root_retract:0.00, tongue_protrusion:0.00, velum_lower:0.90, larynx_height:0.00, voicing:1.00, aspiration:0.00, cheek_compression:0.10, nostril_flare:0.60 },
+  },
+  "t": {
+    name: "Voiceless alveolar stop",
+    manner: "Stop", place: "Alveolar", voicing: "Voiceless",
+    example: "top (English)",
+    S: { jaw_open:0.10, lip_aperture:0.20, lip_spreading:0.10, lip_rounding:0.00, lip_compression:0.00, lower_lip_tuck:0.00, upper_lip_raise:0.05, tongue_height:0.50, tongue_backness:0.20, tongue_tip_raise:0.90, tongue_groove:0.00, tongue_dorsum_raise:0.00, tongue_root_retract:0.00, tongue_protrusion:0.00, velum_lower:0.00, larynx_height:0.00, voicing:0.00, aspiration:0.55, cheek_compression:0.15, nostril_flare:0.00 },
+  },
+  "d": {
+    name: "Voiced alveolar stop",
+    manner: "Stop", place: "Alveolar", voicing: "Voiced",
+    example: "dog (English)",
+    S: { jaw_open:0.10, lip_aperture:0.20, lip_spreading:0.10, lip_rounding:0.00, lip_compression:0.00, lower_lip_tuck:0.00, upper_lip_raise:0.05, tongue_height:0.50, tongue_backness:0.20, tongue_tip_raise:0.90, tongue_groove:0.00, tongue_dorsum_raise:0.00, tongue_root_retract:0.00, tongue_protrusion:0.00, velum_lower:0.00, larynx_height:0.00, voicing:1.00, aspiration:0.00, cheek_compression:0.10, nostril_flare:0.00 },
+  },
+  "n": {
+    name: "Voiced alveolar nasal",
+    manner: "Nasal", place: "Alveolar", voicing: "Voiced",
+    example: "now (English)",
+    S: { jaw_open:0.15, lip_aperture:0.25, lip_spreading:0.10, lip_rounding:0.00, lip_compression:0.00, lower_lip_tuck:0.00, upper_lip_raise:0.00, tongue_height:0.50, tongue_backness:0.20, tongue_tip_raise:0.85, tongue_groove:0.00, tongue_dorsum_raise:0.00, tongue_root_retract:0.00, tongue_protrusion:0.00, velum_lower:0.90, larynx_height:0.00, voicing:1.00, aspiration:0.00, cheek_compression:0.00, nostril_flare:0.50 },
+  },
+  "s": {
+    name: "Voiceless alveolar fricative",
+    manner: "Fricative", place: "Alveolar", voicing: "Voiceless",
+    example: "sit (English)",
+    S: { jaw_open:0.10, lip_aperture:0.15, lip_spreading:0.25, lip_rounding:0.00, lip_compression:0.00, lower_lip_tuck:0.00, upper_lip_raise:0.05, tongue_height:0.55, tongue_backness:0.20, tongue_tip_raise:0.60, tongue_groove:0.90, tongue_dorsum_raise:0.00, tongue_root_retract:0.00, tongue_protrusion:0.00, velum_lower:0.00, larynx_height:0.00, voicing:0.00, aspiration:0.00, cheek_compression:0.20, nostril_flare:0.00 },
+  },
+  "z": {
+    name: "Voiced alveolar fricative",
+    manner: "Fricative", place: "Alveolar", voicing: "Voiced",
+    example: "zoo (English)",
+    S: { jaw_open:0.10, lip_aperture:0.15, lip_spreading:0.25, lip_rounding:0.00, lip_compression:0.00, lower_lip_tuck:0.00, upper_lip_raise:0.05, tongue_height:0.55, tongue_backness:0.20, tongue_tip_raise:0.60, tongue_groove:0.90, tongue_dorsum_raise:0.00, tongue_root_retract:0.00, tongue_protrusion:0.00, velum_lower:0.00, larynx_height:0.00, voicing:1.00, aspiration:0.00, cheek_compression:0.15, nostril_flare:0.00 },
+  },
+  "ʃ": {
+    name: "Voiceless postalveolar fricative",
+    manner: "Fricative", place: "Postalveolar", voicing: "Voiceless",
+    example: "she (English)",
+    S: { jaw_open:0.10, lip_aperture:0.25, lip_spreading:0.00, lip_rounding:0.40, lip_compression:0.00, lower_lip_tuck:0.00, upper_lip_raise:0.00, tongue_height:0.55, tongue_backness:0.30, tongue_tip_raise:0.50, tongue_groove:0.85, tongue_dorsum_raise:0.30, tongue_root_retract:0.00, tongue_protrusion:0.00, velum_lower:0.00, larynx_height:0.00, voicing:0.00, aspiration:0.00, cheek_compression:0.25, nostril_flare:0.00 },
+  },
+  "ʒ": {
+    name: "Voiced postalveolar fricative",
+    manner: "Fricative", place: "Postalveolar", voicing: "Voiced",
+    example: "measure (English)",
+    S: { jaw_open:0.10, lip_aperture:0.25, lip_spreading:0.00, lip_rounding:0.40, lip_compression:0.00, lower_lip_tuck:0.00, upper_lip_raise:0.00, tongue_height:0.55, tongue_backness:0.30, tongue_tip_raise:0.50, tongue_groove:0.85, tongue_dorsum_raise:0.30, tongue_root_retract:0.00, tongue_protrusion:0.00, velum_lower:0.00, larynx_height:0.00, voicing:1.00, aspiration:0.00, cheek_compression:0.20, nostril_flare:0.00 },
+  },
+  "k": {
+    name: "Voiceless velar stop",
+    manner: "Stop", place: "Velar", voicing: "Voiceless",
+    example: "cat (English)",
+    S: { jaw_open:0.15, lip_aperture:0.25, lip_spreading:0.05, lip_rounding:0.00, lip_compression:0.00, lower_lip_tuck:0.00, upper_lip_raise:0.00, tongue_height:0.60, tongue_backness:0.80, tongue_tip_raise:0.00, tongue_groove:0.00, tongue_dorsum_raise:0.90, tongue_root_retract:0.00, tongue_protrusion:0.00, velum_lower:0.00, larynx_height:0.00, voicing:0.00, aspiration:0.50, cheek_compression:0.25, nostril_flare:0.00 },
+  },
+  "g": {
+    name: "Voiced velar stop",
+    manner: "Stop", place: "Velar", voicing: "Voiced",
+    example: "go (English)",
+    S: { jaw_open:0.15, lip_aperture:0.25, lip_spreading:0.05, lip_rounding:0.00, lip_compression:0.00, lower_lip_tuck:0.00, upper_lip_raise:0.00, tongue_height:0.60, tongue_backness:0.80, tongue_tip_raise:0.00, tongue_groove:0.00, tongue_dorsum_raise:0.90, tongue_root_retract:0.00, tongue_protrusion:0.00, velum_lower:0.00, larynx_height:0.00, voicing:1.00, aspiration:0.00, cheek_compression:0.15, nostril_flare:0.00 },
+  },
+  "f": {
+    name: "Voiceless labiodental fricative",
+    manner: "Fricative", place: "Labiodental", voicing: "Voiceless",
+    example: "fan (English)",
+    S: { jaw_open:0.15, lip_aperture:0.10, lip_spreading:0.10, lip_rounding:0.00, lip_compression:0.00, lower_lip_tuck:0.85, upper_lip_raise:0.20, tongue_height:0.30, tongue_backness:0.40, tongue_tip_raise:0.00, tongue_groove:0.00, tongue_dorsum_raise:0.00, tongue_root_retract:0.00, tongue_protrusion:0.00, velum_lower:0.00, larynx_height:0.00, voicing:0.00, aspiration:0.00, cheek_compression:0.10, nostril_flare:0.00 },
+  },
+  "v": {
+    name: "Voiced labiodental fricative",
+    manner: "Fricative", place: "Labiodental", voicing: "Voiced",
+    example: "van (English)",
+    S: { jaw_open:0.15, lip_aperture:0.10, lip_spreading:0.10, lip_rounding:0.00, lip_compression:0.00, lower_lip_tuck:0.85, upper_lip_raise:0.20, tongue_height:0.30, tongue_backness:0.40, tongue_tip_raise:0.00, tongue_groove:0.00, tongue_dorsum_raise:0.00, tongue_root_retract:0.00, tongue_protrusion:0.00, velum_lower:0.00, larynx_height:0.00, voicing:1.00, aspiration:0.00, cheek_compression:0.05, nostril_flare:0.00 },
+  },
+  "θ": {
+    name: "Voiceless dental fricative",
+    manner: "Fricative", place: "Dental", voicing: "Voiceless",
+    example: "thin (English)",
+    S: { jaw_open:0.20, lip_aperture:0.30, lip_spreading:0.10, lip_rounding:0.00, lip_compression:0.00, lower_lip_tuck:0.00, upper_lip_raise:0.10, tongue_height:0.25, tongue_backness:0.20, tongue_tip_raise:0.00, tongue_groove:0.10, tongue_dorsum_raise:0.00, tongue_root_retract:0.00, tongue_protrusion:0.80, velum_lower:0.00, larynx_height:0.00, voicing:0.00, aspiration:0.00, cheek_compression:0.05, nostril_flare:0.00 },
+  },
+  "ð": {
+    name: "Voiced dental fricative",
+    manner: "Fricative", place: "Dental", voicing: "Voiced",
+    example: "this (English)",
+    S: { jaw_open:0.20, lip_aperture:0.30, lip_spreading:0.10, lip_rounding:0.00, lip_compression:0.00, lower_lip_tuck:0.00, upper_lip_raise:0.10, tongue_height:0.25, tongue_backness:0.20, tongue_tip_raise:0.00, tongue_groove:0.10, tongue_dorsum_raise:0.00, tongue_root_retract:0.00, tongue_protrusion:0.80, velum_lower:0.00, larynx_height:0.00, voicing:1.00, aspiration:0.00, cheek_compression:0.00, nostril_flare:0.00 },
+  },
+  "h": {
+    name: "Voiceless glottal fricative",
+    manner: "Fricative", place: "Glottal", voicing: "Voiceless",
+    example: "hat (English)",
+    S: { jaw_open:0.30, lip_aperture:0.35, lip_spreading:0.10, lip_rounding:0.00, lip_compression:0.00, lower_lip_tuck:0.00, upper_lip_raise:0.00, tongue_height:0.30, tongue_backness:0.40, tongue_tip_raise:0.00, tongue_groove:0.00, tongue_dorsum_raise:0.00, tongue_root_retract:0.00, tongue_protrusion:0.00, velum_lower:0.00, larynx_height:0.10, voicing:0.00, aspiration:0.85, cheek_compression:0.00, nostril_flare:0.10 },
+  },
+  "l": {
+    name: "Voiced alveolar lateral approximant",
+    manner: "Approximant", place: "Alveolar", voicing: "Voiced",
+    example: "let (English)",
+    S: { jaw_open:0.20, lip_aperture:0.30, lip_spreading:0.10, lip_rounding:0.00, lip_compression:0.00, lower_lip_tuck:0.00, upper_lip_raise:0.00, tongue_height:0.50, tongue_backness:0.20, tongue_tip_raise:0.85, tongue_groove:0.00, tongue_dorsum_raise:0.00, tongue_root_retract:0.00, tongue_protrusion:0.00, velum_lower:0.00, larynx_height:0.00, voicing:1.00, aspiration:0.00, cheek_compression:0.00, nostril_flare:0.00 },
+  },
+  "ŋ": {
+    name: "Voiced velar nasal",
+    manner: "Nasal", place: "Velar", voicing: "Voiced",
+    example: "sing (English)",
+    S: { jaw_open:0.15, lip_aperture:0.25, lip_spreading:0.05, lip_rounding:0.00, lip_compression:0.00, lower_lip_tuck:0.00, upper_lip_raise:0.00, tongue_height:0.60, tongue_backness:0.80, tongue_tip_raise:0.00, tongue_groove:0.00, tongue_dorsum_raise:0.85, tongue_root_retract:0.00, tongue_protrusion:0.00, velum_lower:0.90, larynx_height:0.00, voicing:1.00, aspiration:0.00, cheek_compression:0.00, nostril_flare:0.50 },
+  },
+};
+
+const ARTICULATOR_GROUPS = [
+  { label: "Jaw", channels: ["jaw_open","jaw_protrude","jaw_lateral"] },
+  { label: "Lips", channels: ["lip_aperture","lip_rounding","lip_spreading","lip_compression","lower_lip_tuck","upper_lip_raise","lip_asymmetry"] },
+  { label: "Tongue", channels: ["tongue_height","tongue_backness","tongue_tip_raise","tongue_tip_curl","tongue_groove","tongue_dorsum_raise","tongue_root_retract","tongue_protrusion"] },
+  { label: "Velum & Larynx", channels: ["velum_lower","larynx_height","voicing","aspiration"] },
+  { label: "Secondary", channels: ["cheek_compression","nostril_flare"] },
+];
+
+const CHIPS_LIST = ["i","u","a","ɛ","o","p","b","m","t","d","n","s","z","ʃ","ʒ","k","g","f","v","θ","ð","h","l","ŋ"];
+
+const LAYER_COLORS = {
+  S: { bar: "#3266ad", fill: "#c8ddf6" },
+  P: { bar: "#3B6D11", fill: "#c0dd97" },
+  E: { bar: "#854F0B", fill: "#fac775" },
+  R: { bar: "#3C3489", fill: "#CECBF6" },
+};
+
+function pct(val) {
+  if (val < 0) return Math.abs(val) * 50;
+  return val * 100;
+}
+
+function leftOffset(val) {
+  if (val < 0) return (1 + val) * 50;
+  return 50;
+}
+
+function isBipolar(val) { return val < 0; }
+
+function renderChannel(name, val, color) {
+  const isZero = Math.abs(val) < 0.005;
+  const displayVal = val.toFixed(2);
+  const width = pct(val).toFixed(1) + "%";
+  const left = isBipolar(val) ? leftOffset(val).toFixed(1) + "%" : "0%";
+  return `
+    <div class="channel-row">
+      <span class="ch-name" title="${name}">${name}</span>
+      <div class="ch-bar-track">
+        <div class="ch-bar-fill" style="width:${width};left:${left};background:${color.bar};"></div>
+      </div>
+      <span class="ch-val${isZero ? " zero" : ""}">${displayVal}</span>
+    </div>`;
+}
+
+function renderGroups(channels, color) {
+  let html = "";
+  for (const g of ARTICULATOR_GROUPS) {
+    const relevant = g.channels.filter(ch => ch in channels);
+    if (!relevant.length) continue;
+    html += `<div class="artic-group"><span class="group-label">${g.label}</span>`;
+    for (const ch of relevant) {
+      html += renderChannel(ch, channels[ch] || 0, color);
+    }
+    html += `</div>`;
+  }
+  return html;
+}
+
+function renderPhoneme(sym) {
+  const key = sym.replace(/\//g, "").trim();
+  const data = PHONEME_DB[key];
+
+  document.getElementById("emptyState").style.display = data ? "none" : "";
+  document.getElementById("infoSection").style.display = data ? "" : "none";
+  document.getElementById("channelsSection").style.display = data ? "" : "none";
+
+  document.querySelectorAll(".chip").forEach(c => c.classList.toggle("active", c.dataset.sym === key));
+
+  if (!data) {
+    if (key.length > 0) {
+      document.getElementById("emptyState").textContent = `/${key}/ not in database — try a common IPA symbol`;
+      document.getElementById("emptyState").style.display = "";
+    }
+    return;
+  }
+
+  document.getElementById("phonemeInfo").innerHTML = `
+    <div class="info-card">
+      <div class="info-label">manner</div>
+      <div class="info-val">${data.manner}</div>
+    </div>
+    <div class="info-card">
+      <div class="info-label">place</div>
+      <div class="info-val">${data.place}</div>
+    </div>
+    <div class="info-card">
+      <div class="info-label">voicing</div>
+      <div class="info-val">${data.voicing}</div>
+    </div>`;
+
+  const color = LAYER_COLORS.S;
+  document.getElementById("articulatorGroups").innerHTML = `
+    <div class="section-header">
+      <span class="layer-tag tag-s">S layer</span>
+      <span class="section-label">Speech articulation</span>
+      <span class="section-desc">${data.name}</span>
+    </div>
+    <div class="channels">
+      ${renderGroups(data.S, color)}
+    </div>`;
+}
+
+const chipsEl = document.getElementById("chips");
+CHIPS_LIST.forEach(sym => {
+  const chip = document.createElement("button");
+  chip.className = "chip";
+  chip.dataset.sym = sym;
+  chip.textContent = "/" + sym + "/";
+  chip.onclick = () => {
+    document.getElementById("ipaInput").value = sym;
+    renderPhoneme(sym);
+  };
+  chipsEl.appendChild(chip);
+});
+
+const input = document.getElementById("ipaInput");
+input.addEventListener("input", () => renderPhoneme(input.value));
+
+renderPhoneme("i");
+input.value = "i";
+</script>
